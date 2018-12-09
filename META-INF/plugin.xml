@@ -1,0 +1,15 @@
+<plugin>
+  <key>EC-AuditReports</key>
+  <label>EC-AuditReports</label>
+  <version>1.0.0</version>
+  <author>Ken McKnight</author>
+  <authorUrl>mailto:kmcknight@electric-cloud.com</authorUrl>
+  <category>Audit</category>
+  <commander-version min="6.0" />
+  <description>A collection of audit reports that show up in the summary of an associated release pipeline stage.</description>
+  <configure>ec_config</configure>
+  <pluginWizardBased>true</pluginWizardBased>
+  <depends min="1.4.1">EC-PluginManager</depends>
+  <depends min="2.0.2">Unplug</depends>
+  <help>help.xml</help>
+</plugin>

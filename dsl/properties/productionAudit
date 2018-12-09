@@ -1,0 +1,108 @@
+#!ec-perl
+# Unplug content
+# Production stage audit report
+# View: v9
+# ectool setProperty /server/unplug/v9 --valueFile prodaudit.pl
+# https://flow/commander/pages/unplug/un_run9
+my $DEBUG = 0;
+
+# DEBUG: ec-perl fullinventory.pl
+#my $HTML="";$DEBUG= 1;
+
+#my $DEBUG= 1 if not defined $HTML;
+#my $HTML="" if $DEBUG;
+# if ($ENV{'GATEWAY_INTERFACE'}) {
+	##Running from unplug
+# } else {
+	##Debugging outside unplug
+	# $DEBUG = 1;
+	# my $HTML = "";
+# }
+
+use ElectricCommander;
+use strict;
+$| = 1;
+
+my $ec = new ElectricCommander({'format'=>'json'});
+
+# Start with a nice title for the report
+$HTML .= qq(
+    <h1>Production Audit Report</h1>
+);
+
+# Process general info section
+$HTML .= qq(
+    <h2>General Information</h2>
+    <table class="data" cellspacing="0">
+		<tr class="headerRow">
+			<td>Label</td>
+			<td>Value</td>
+		</tr>
+);
+my $properties=$ec->getProperties({path => "/projects/Weave Works/APPLICATION_VERSION_DETAILS"})->{responses}[0]->{propertySheet}->{property};
+for my $property (@{$properties}) {
+	my $propertyName = $property->{propertyName};
+	my $propertyValue= $property->{value};
+
+	if ($propertyName ne "SERVICE_VERSIONS") {
+		$HTML .= qq(
+			<tr>
+				<td>$propertyName</td>
+				<td>$propertyValue</td>
+			</tr>
+		);
+	}
+}
+$HTML .= qq(
+   </table>
+);
+
+# Process microservice info section
+$HTML .= qq(
+    <h2>Microservice Information</h2>
+    <table class="data" cellspacing="0">
+		<tr class="headerRow">
+			<td>MICROSERVICE</td>
+			<td>ARTIFACT_DIR</td>
+			<td>CURRENT_BUILD</td>
+			<td>CURRENT_IMAGE_TAG</td>
+			<td>DEPLOYMENT_TYPE</td>
+			<td>SCHEDULER_ORCH</td>
+			<td>SCM_USER</td>
+			<td>IMAGE_REPOSITORY</td>
+			<td>PULL_DIR</td>
+			<td>REGISTRY_TYPE</td>
+			<td>REGISTRY_VALUE</td>
+                        <td>SCM_COMMENT</td>
+                        <td>SCM_LAST_COMMIT</td>
+                        <td>SCM_TYPE</td>
+                        <td>SCM_ADDR</td>
+		</tr>
+);
+my $microservices=$ec->getProperties({path => "/projects/Weave Works/APPLICATION_VERSION_DETAILS/SERVICE_VERSIONS"})->{responses}[0]->{propertySheet}->{property};
+for my $microservice (@{$microservices}) {
+	my $microserviceName = $microservice->{propertyName};
+	my $propertySheetId = $microservice->{propertySheetId};
+
+	$HTML .= qq(
+		<tr>
+			<td>$microserviceName</td>
+	);
+	my $details=$ec->getProperties({propertySheetId => "$propertySheetId"})->{responses}[0]->{propertySheet}->{property};
+	for my $detail (@{$details}) {
+		my $detailName = $detail->{propertyName};
+		my $detailValue = $detail->{value};
+		
+		if ($detailName ne "BUILD_HISTORY" && $detailName ne "IMAGE_LIBRARY" && $detailName ne "TEST_HISTORY") {
+			$HTML .= qq(
+				<td>$detailValue</td>
+			);
+		}
+	}
+	$HTML .= qq(
+		</tr>
+	);
+}
+$HTML .= qq(
+   </table>
+);

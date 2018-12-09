@@ -1,0 +1,217 @@
+#!ec-perl
+# Unplug content
+# Production stage audit report
+# View: v9
+# ectool setProperty /server/unplug/v9 --valueFile prodaudit.pl
+# https://flow/commander/pages/unplug/un_run9
+my $DEBUG = 0;
+
+# DEBUG: ec-perl fullinventory.pl
+#my $HTML="";$DEBUG= 1;
+
+#my $DEBUG= 1 if not defined $HTML;
+#my $HTML="" if $DEBUG;
+# if ($ENV{'GATEWAY_INTERFACE'}) {
+	##Running from unplug
+# } else {
+	##Debugging outside unplug
+	# $DEBUG = 1;
+	# my $HTML = "";
+# }
+
+use ElectricCommander;
+use DateTime::Format::Strptime;
+use strict;
+$| = 1;
+
+# calculate total duration based on start/completion timestamps
+sub calcDuration {
+	my ($startTime, $endTime) = @_;
+
+	# set timestamp format
+	my $parser = DateTime::Format::Strptime->new(pattern => '%Y-%m-%dT%H:%M:%S.%3NZ');
+
+	# if times are empty then set to same dummy value so duration will be 0
+	if ($startTime == "" | $endTime == "") {
+		$startTime = "1970-01-01T00:00:00.000Z";
+		$endTime = "1970-01-01T00:00:00.000Z";
+	}
+
+	# parse times
+	my $dt1 = $parser->parse_datetime($startTime);
+	my $dt2 = $parser->parse_datetime($endTime);
+
+	# calculate duration
+	my $diff = $dt2 - $dt1;
+
+	# format duration
+	my $totalDuration = sprintf("%02d:%02d:%02d",$diff->hours, $diff->minutes, $diff->seconds);
+
+	return $totalDuration;
+}
+
+my $ec = new ElectricCommander({'format'=>'json'});
+
+# Start with a nice title for the report
+$HTML .= qq(
+    <h1>Task/Gate Timing Audit Report</h1>
+);
+
+# Process general info section
+$HTML .= qq(
+    <h2>General Information</h2>
+    <table class="data" cellspacing="0">
+		<tr class="headerRow">
+			<td>Label</td>
+			<td>Value</td>
+		</tr>
+);
+
+my $uuid = $cgi->url_param('flowRuntimeId');
+my $flowRuntime=$ec->getPipelineRuntimeDetails({flowRuntimeId => $uuid})->{responses}[0]->{flowRuntime}[0]; 
+my $flowRuntimeName = $flowRuntime->{flowRuntimeName};
+my $pipelineName = $flowRuntime->{name};
+my $startTime = $flowRuntime->{startTime};
+my $completionTime = $flowRuntime->{completionTime};
+
+# calculate total duration of pipeline run
+my $totalDuration = calcDuration($startTime, $completionTime);
+
+$HTML .= qq(
+	<tr>
+		<td>Pipeline Execution</td>
+		<td>$flowRuntimeName</td>
+	</tr>
+	<tr>
+		<td>Pipeline Name</td>
+		<td>$pipelineName</td>
+	</tr>
+	<tr>
+		<td>Execution Start</td>
+		<td>$startTime</td>
+	</tr>
+	<tr>
+		<td>Execution Complete</td>
+		<td>$completionTime</td>
+	</tr>
+	<tr>
+		<td>Total Runtime</td>
+		<td>$totalDuration</td>
+	</tr>
+);
+$HTML .= qq(
+   </table>
+);
+
+# Create hash to hold stage/gates/tasks data
+# Once hash is complete, then create xhtml output (separation of data and presentation layers)
+my %stagesHash;
+
+# task indexes for proper sorting
+my $preHashIndex = 0;
+my $taskHashIndex = 1;
+my $postHashIndex = 2;
+
+# Loop through stages and store stage and gate task data
+my $stages=$flowRuntime->{stages}->{stage};
+for my $stage (@{$stages}) {
+	my $stageIndex = $stage->{index};
+        my $stageName = $stage->{name};
+        $stagesHash{$stageIndex}{'name'} = $stageName;
+        $stagesHash{$stageIndex}{'span'} = 0;
+
+	# loop through tasks for current stage
+	my $tasks=$ec->getPipelineStageRuntimeTasks({flowRuntimeId => $uuid, stageName => $stageName})->{responses}[0]->{task}; 
+	for my $task (@{$tasks}) {
+		# bump stages span counter
+		$stagesHash{$stageIndex}{'span'}++;
+
+		# store task name
+		my $taskIndex = $task->{index};
+		$stagesHash{$stageIndex}{'types'}{$taskHashIndex}{$taskIndex}{'name'} = $task->{taskName};
+
+		# store task duration
+		my $startTime = $task->{startTime};
+		my $endTime = $task->{endTime};
+		$stagesHash{$stageIndex}{'types'}{$taskHashIndex}{$taskIndex}{'duration'} = calcDuration($startTime, $endTime);
+	}
+
+	# loop through gate tasks for current stage
+	my $gates=$stage->{gates}->{gate};
+	for my $gate (@{$gates}) {
+		my $gateType = $gate->{gateType};
+		my $gateHashIndex = $preHashIndex;
+		if ($gateType eq "POST") {$gateHashIndex = $postHashIndex}
+
+		# Loop through tasks
+		my $taskIndex = 0;
+		my $tasks=$gate->{tasks}->{task};
+		for my $task (@{$tasks}) {
+			# bump stages span counter
+			$stagesHash{$stageIndex}{'span'}++;
+
+			# store task name
+			$stagesHash{$stageIndex}{'types'}{$gateHashIndex}{$taskIndex}{'name'} = $task->{name};
+
+			# store task duration
+			my $startTime = $task->{startTime};
+			my $endTime = $task->{endTime};
+			$stagesHash{$stageIndex}{'types'}{$gateHashIndex}{$taskIndex}{'duration'} = calcDuration($startTime, $endTime);
+
+			# bump index counter
+			$taskIndex++;
+		}
+	}
+}
+
+# create xhtml for stages hash data
+$HTML .= qq(
+    <h2>Details</h2>
+    <table class="data" cellspacing="0">
+		<tr class="headerRow">
+			<td>Stage</td>
+			<td>Type</td>
+			<td>Task</td>
+			<td>Duration</td>
+		</tr>
+);
+
+for my $stageIndex (sort {$a<=>$b} keys %stagesHash) {
+	$HTML .= qq(
+		<tr>
+			<td rowspan="$stagesHash{$stageIndex}{'span'}">$stagesHash{$stageIndex}{'name'}</td>
+	);
+
+	my %types = %{$stagesHash{$stageIndex}{'types'}};
+	for my $typesIndex (sort {$a<=>$b} keys %types) {
+		my %tasks = %{$types{$typesIndex}};
+		my $tasksCount = keys %tasks;
+
+		# Add type row that spans 1 or more tasks
+		my $taskName = "PRE";
+		if ($typesIndex == $taskHashIndex) {$taskName = "TASK"}
+		elsif ($typesIndex == $postHashIndex) {$taskName = "POST"}
+		$HTML .= qq(
+			<td rowspan="$tasksCount">$taskName</td>
+		);
+
+		for my $taskIndex (sort {$a<=>$b} keys %tasks) {
+			# Only combine with stage row if it is the first gate
+			if ($taskIndex gt 0) {
+				$HTML .= qq(
+					<tr>
+				);
+			}
+			$HTML .= qq(
+					<td>$stagesHash{$stageIndex}{'types'}{$typesIndex}{$taskIndex}{'name'}</td>
+					<td>$stagesHash{$stageIndex}{'types'}{$typesIndex}{$taskIndex}{'duration'}</td>
+				</tr>
+			);
+		}
+
+	}
+}
+
+$HTML .= qq(
+   </table>
+);

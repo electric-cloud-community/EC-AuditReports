@@ -1,0 +1,245 @@
+#!ec-perl
+# Unplug content
+# Production stage audit report
+# View: v9
+# ectool setProperty /server/unplug/v9 --valueFile prodaudit.pl
+# https://flow/commander/pages/unplug/un_run9
+my $DEBUG = 0;
+
+# DEBUG: ec-perl fullinventory.pl
+#my $HTML="";$DEBUG= 1;
+
+#my $DEBUG= 1 if not defined $HTML;
+#my $HTML="" if $DEBUG;
+# if ($ENV{'GATEWAY_INTERFACE'}) {
+	##Running from unplug
+# } else {
+	##Debugging outside unplug
+	# $DEBUG = 1;
+	# my $HTML = "";
+# }
+
+use ElectricCommander;
+use strict;
+$| = 1;
+
+my $ec = new ElectricCommander({'format'=>'json'});
+
+# Start with a nice title for the report
+$HTML .= qq(
+    <h1>Approval Audit Report</h1>
+);
+
+# Process general info section
+$HTML .= qq(
+    <h2>General Information</h2>
+    <table class="data" cellspacing="0">
+		<tr class="headerRow">
+			<td>Label</td>
+			<td>Value</td>
+		</tr>
+);
+
+#my $uuid = "f4e0c98a-bdb2-11e7-8e15-280820524153"; # all gates
+#my $uuid = "ab57569f-bdb4-11e7-b4c3-280820524153"; # one gate per stage
+#my $uuid = "43b5084e-bdb4-11e7-8a64-280820524153"; # multiple tasks on a gate
+my $uuid = $cgi->url_param('flowRuntimeId');
+my $flowRuntime=$ec->getPipelineRuntimeDetails({flowRuntimeId => $uuid})->{responses}[0]->{flowRuntime}[0]; 
+my $flowRuntimeName = $flowRuntime->{flowRuntimeName};
+my $pipelineName = $flowRuntime->{name};
+my $startTime = $flowRuntime->{startTime};
+my $completionTime = $flowRuntime->{completionTime};
+my $status = $flowRuntime->{status};
+
+$HTML .= qq(
+	<tr>
+		<td>Pipeline Execution</td>
+		<td>$flowRuntimeName</td>
+	</tr>
+	<tr>
+		<td>Pipeline Name</td>
+		<td>$pipelineName</td>
+	</tr>
+	<tr>
+		<td>Execution Start</td>
+		<td>$startTime</td>
+	</tr>
+	<tr>
+		<td>Execution Complete</td>
+		<td>$completionTime</td>
+	</tr>
+	<tr>
+		<td>Status</td>
+		<td>$status</td>
+	</tr>
+);
+$HTML .= qq(
+   </table>
+);
+
+# Process stages/gates
+$HTML .= qq(
+    <h2>Details</h2>
+    <table class="data" cellspacing="0">
+		<tr class="headerRow">
+			<td>Stage</td>
+			<td>Gate Type</td>
+			<td>Status</td>
+			<td>User</td>
+			<td>Date</td>
+			<td>Comment</td>
+		</tr>
+);
+
+# Create hash to hold stages info so it can be sorted numerically by index number
+# Also needed because rowspan for stage/gates can only be calculated as the json structure is parsed,
+# meaning I can't just generate the html table rows on the fly
+my %stagesInfo;
+
+# Loop through stages
+my $stages=$flowRuntime->{stages}->{stage};
+for my $stage (@{$stages}) {
+	my $stageRowspan = 0;
+	my $stageIndex = $stage->{index};
+	my $stageName = $stage->{name};
+	
+	# Loop through gates
+	my $gateHTML="";
+	my $gates=$stage->{gates}->{gate};
+	for my $gate (@{$gates}) {
+		my $gateRowspan = 0;
+		my $gateType = $gate->{gateType};
+		my $taskCount = $gate->{taskCount};
+		
+		# Loop through tasks
+		my $taskHTML="";
+		my $tasks=$gate->{tasks}->{task};
+		
+		# Loop through tasks
+		# Handles special case of no tasks
+		my $task = shift @{$tasks};
+		do {
+			$gateRowspan++;
+			my $status;
+			if ($taskCount eq 0) {
+				next;
+			} else {
+				$status = $task->{status};
+				# If no status exists then gate hasn't been reached yet
+				if ($status eq "") {
+					$status = "<i>Future</i>";
+				}
+			}
+
+			# set defaults
+			my $fullUserName = "";
+			my $approvalDate = "";
+			my $evidence = "";
+			my $user = "";
+
+			my $taskType = $task->{taskType};
+			if ($taskType eq "APPROVAL") {
+				if ($status eq "Approved" || $status eq "Rejected") {
+					$user = $task->{approvedBy};
+					$approvalDate = $task->{approvalDate};
+					$evidence = $task->{evidence};
+
+					# Get full user name
+					if ($user =~ m/^project:/) {
+						# Unless it's a project principle, in which case just use 'approvers' 
+						$fullUserName = $task->{approvers};
+					} else {
+						$fullUserName = $ec->getUser({userName => $user})->{responses}[0]->{user}->{fullUserName};
+					}
+				} 
+			} 
+			if ($taskType eq "PROCEDURE") {
+				$approvalDate = $task->{endTime};
+				$evidence = "Auto-approved by procedure: $task->{subprocedure}";
+				$fullUserName = "[Auto-approved by procedure]";
+			} 
+			if ($taskType eq "CONDITIONAL") {
+				$approvalDate = $task->{endTime};
+				$evidence = "Auto-approved by conditional: $task->{name}";
+				$fullUserName = "[Auto-approved by conditional]";
+			} 
+			
+			# Add status color coding
+			my $statusColor;
+			if ($status eq "Approved" || $status eq "success") {
+				$statusColor = "green";
+			} elsif ($status eq "Pending") {
+				$statusColor = "orange";
+			} elsif ($status eq "Rejected" || $status eq "ABORT" || $status eq "error") {
+				$statusColor = "red";
+			} else {
+				$statusColor = "black";
+			}
+						
+			# Only start new row if it's not the first task, which is combined with the gate
+			if ($gateRowspan gt 1) {
+				$taskHTML .= qq(
+					<tr>
+				);
+			}
+			# Write out the rest of the row minus gate type (done later due to rowspan count)
+			$taskHTML .= qq(
+					<td><font color="$statusColor">$status</font></td>
+					<td>$fullUserName</td>
+					<td>$approvalDate</td>
+					<td>$evidence</td>
+				</tr>
+			);
+		} while ($task = shift @{$tasks});
+
+		# Only combine with stage row if it's the first gate
+		if ($gateRowspan gt 1) {
+			$taskHTML .= qq(
+				<tr>
+			);
+		}
+		# Add gate row that spans 1 or more tasks
+		$gateHTML .= qq(
+			<td rowspan="$gateRowspan">$gateType</td>
+		);
+		$gateHTML .= $taskHTML;
+		
+		# Add tasks in gate to total rows spanned by stage
+		$stageRowspan += $gateRowspan;
+	}
+
+	# Handle special case where there were no gate entries, so stageRowspan was still set to 0, which
+	# is actually a special case for several browsers and causes incorrect behavior
+        if ($stageRowspan eq 0) {
+            $stageRowspan= 1;
+        }
+	
+	# Write out html info to indexed hash now that we have the necessary stage/gate rowspan values
+	my $stageHTML .= qq(
+		<tr>
+			<td rowspan="$stageRowspan">$stageName</td>
+	);
+
+	# If there are no gates, then indicate so by displaying '---'
+	if ($gateHTML eq "") {
+		$gateHTML .= qq(
+				<td>---</td>
+				<td>---</td>
+				<td>---</td>
+				<td>---</td>
+				<td>---</td>
+			</tr>
+		);
+	}
+	$stageHTML .= $gateHTML;
+	$stagesInfo{$stageIndex} = $stageHTML;
+}
+
+# Now sort hash in numeric order and save in unplug $HTML variable for display
+for my $stageInfoIndex ( sort {$a<=>$b} keys %stagesInfo) {
+	$HTML .= $stagesInfo{$stageInfoIndex};
+}
+
+$HTML .= qq(
+   </table>
+);

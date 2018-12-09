@@ -1,0 +1,161 @@
+#!ec-perl
+# Unplug content
+# Evidence audit report
+my $DEBUG = 0;
+
+# DEBUG: ec-perl fullinventory.pl
+#my $HTML="";$DEBUG= 1;
+
+#my $DEBUG= 1 if not defined $HTML;
+#my $HTML="" if $DEBUG;
+# if ($ENV{'GATEWAY_INTERFACE'}) {
+	##Running from unplug
+# } else {
+	##Debugging outside unplug
+	# $DEBUG = 1;
+	# my $HTML = "";
+# }
+
+use ElectricCommander;
+use DateTime::Format::Strptime;
+use Data::Dumper; # for debug - Dumper(\\%hash)
+use strict;
+$| = 1;
+
+my $ec = new ElectricCommander({'format'=>'json'});
+
+# Start with a nice title for the report
+$HTML .= qq(
+    <h1>Evidence Audit Report</h1>
+);
+
+# Process general info section
+$HTML .= qq(
+    <h2>General Information</h2>
+    <table class="data" cellspacing="0">
+		<tr class="headerRow">
+			<td>Label</td>
+			<td>Value</td>
+		</tr>
+);
+
+my $uuid = $cgi->url_param('flowRuntimeId');
+my $flowRuntime=$ec->getPipelineRuntimeDetails({flowRuntimeId => $uuid})->{responses}[0]->{flowRuntime}[0]; 
+my $flowRuntimeName = $flowRuntime->{flowRuntimeName};
+my $pipelineName = $flowRuntime->{name};
+my $startTime = $flowRuntime->{startTime};
+my $completionTime = $flowRuntime->{completionTime};
+my $status = $flowRuntime->{status};
+
+$HTML .= qq(
+	<tr>
+		<td>Pipeline Execution</td>
+		<td>$flowRuntimeName</td>
+	</tr>
+	<tr>
+		<td>Pipeline Name</td>
+		<td>$pipelineName</td>
+	</tr>
+	<tr>
+		<td>Execution Start</td>
+		<td>$startTime</td>
+	</tr>
+	<tr>
+		<td>Execution Complete</td>
+		<td>$completionTime</td>
+	</tr>
+	<tr>
+		<td>Status</td>
+		<td>$status</td>
+	</tr>
+);
+$HTML .= qq(
+   </table>
+);
+
+# Create hash to hold stage/gates/tasks data
+# Once hash is complete, then create xhtml output (separation of data and presentation layers)
+my %stagesHash;
+
+# Loop through stages and store stage and gate task data
+my $stages=$flowRuntime->{stages}->{stage};
+for my $stage (@{$stages}) {
+	my $stageIndex = $stage->{index};
+	my $stageName = $stage->{name};
+	$stagesHash{$stageIndex}{'name'} = $stageName;
+	$stagesHash{$stageIndex}{'span'} = 1; # 0 span makes some browsers act weird
+
+	# loop through summary parameters (aka evidence links) for current stage
+	my $summaryIndex = 0;
+	my $summaryList=$stage->{summary}->{parameterDetail};
+	for my $summaryEntry (@{$summaryList}) {
+		# bump stages span counter if this isn't the first row (0 span is bad)
+		if ($summaryIndex gt 0) {
+			$stagesHash{$stageIndex}{'span'}++;
+		}
+
+		# store evidence name 
+		$stagesHash{$stageIndex}{'summaries'}{$summaryIndex}{'name'} = $summaryEntry->{parameterName};
+
+		# store evidence value
+		my $summaryValue = $summaryEntry->{parameterValue};
+		$summaryValue =~ s|<.?html>||g; # strip off extraneous html tag
+		$stagesHash{$stageIndex}{'summaries'}{$summaryIndex}{'value'} = $summaryValue;
+
+		# bump index counter
+		$summaryIndex++;
+	}
+}
+
+# create xhtml for stages hash data
+$HTML .= qq(
+    <h2>Details</h2>
+    <table class="data" cellspacing="0">
+		<tr class="headerRow">
+			<td>Stage</td>
+			<td>Evidence Name</td>
+			<td>Evidence Link</td>
+		</tr>
+);
+
+for my $stageIndex (sort {$a<=>$b} keys %stagesHash) {
+	$HTML .= qq(
+		<tr>
+			<td rowspan="$stagesHash{$stageIndex}{'span'}">$stagesHash{$stageIndex}{'name'}</td>
+	);
+
+	# list summary links
+	if (exists $stagesHash{$stageIndex}{'summaries'}) {
+		my %summaries = %{$stagesHash{$stageIndex}{'summaries'}};
+		for my $summaryIndex (sort {$a<=>$b} keys %summaries) {
+			# hack for unexplainable string showing up in numeric index set
+			if ($summaryIndex eq "summaries") {
+				next;
+			}
+
+			# Only combine with stage row if it is the first summary item
+			if ($summaryIndex gt 0) {
+				$HTML .= qq(
+					<tr>
+				);
+			}
+			$HTML .= qq(
+					<td>$stagesHash{$stageIndex}{'summaries'}{$summaryIndex}{'name'}</td>
+					<td>$stagesHash{$stageIndex}{'summaries'}{$summaryIndex}{'value'}</td>
+				</tr>
+			);
+
+		}
+	} else {
+		# If there are no summary links, then indicate so by displaying '---'
+		$HTML .= qq(
+				<td>---</td>
+				<td>---</td>
+			</tr>
+		);
+	}
+}
+
+$HTML .= qq(
+   </table>
+);
