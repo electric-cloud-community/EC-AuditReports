@@ -11,4 +11,4 @@ $[/myProject/scripts/perlHeaderJSON]
 
 # config unplug to point to this report
 # note: must split up $[] otherwise content gets substituted, which isn't what we want!
-$ec->setProperty("/server/unplug/v2", "\$\[" . "/plugins/EC-AuditReports/project/timingAudit\]");
+$ec->setProperty("/server/unplug/v2", "\$\[" . "/plugins/EC-AuditReports/project/audit_reports/timingAudit\]");
