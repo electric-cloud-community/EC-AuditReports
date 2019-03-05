@@ -84,8 +84,8 @@ $HTML .= qq(
 		<tr class="headerRow">
 			<td>Stage</td>
 			<td>Gate Type</td>
-			<td>Status</td>
 			<td>User</td>
+			<td>Status</td>
 			<td>Date</td>
 			<td>Comment</td>
 		</tr>
@@ -102,6 +102,14 @@ for my $stage (@{$stages}) {
 	my $stageRowspan = 0;
 	my $stageIndex = $stage->{index};
 	my $stageName = $stage->{name};
+
+	my $stageRunNumber = $stage->{stageRunNumber};
+	# If no runNumber exists then stage only run once
+	if ($stageRunNumber eq "") {
+		$stageRunNumber = "";
+	} else {
+		$stageRunNumber = "(Run $stageRunNumber)";
+	}
 	
 	# Loop through gates
 	my $gateHTML="";
@@ -136,6 +144,14 @@ for my $stage (@{$stages}) {
 			my $approvalDate = "";
 			my $evidence = "";
 			my $user = "";
+
+			my $taskRunNumber = $task->{taskRunNumber};
+			# If no runNumber exists then task only run once
+			if ($taskRunNumber eq "") {
+				$taskRunNumber = "";
+			} else {
+				$taskRunNumber = "(Run $taskRunNumber)";
+			}
 
 			my $taskType = $task->{taskType};
 			if ($taskType eq "APPROVAL") {
@@ -184,8 +200,8 @@ for my $stage (@{$stages}) {
 			}
 			# Write out the rest of the row minus gate type (done later due to rowspan count)
 			$taskHTML .= qq(
+					<td>$fullUserName $taskRunNumber</td>
 					<td><font color="$statusColor">$status</font></td>
-					<td>$fullUserName</td>
 					<td>$approvalDate</td>
 					<td>$evidence</td>
 				</tr>
@@ -200,7 +216,7 @@ for my $stage (@{$stages}) {
 		}
 		# Add gate row that spans 1 or more tasks
 		$gateHTML .= qq(
-			<td rowspan="$gateRowspan">$gateType</td>
+			<td rowspan="$gateRowspan">$gateType $stageRunNumber</td>
 		);
 		$gateHTML .= $taskHTML;
 		
