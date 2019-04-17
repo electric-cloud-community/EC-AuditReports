@@ -102,6 +102,7 @@ for my $stage (@{$stages}) {
 	my $stageRowspan = 0;
 	my $stageIndex = $stage->{index};
 	my $stageName = $stage->{name};
+	my $stageColor = $stage->{colorCode};
 
 	my $stageRunNumber = $stage->{stageRunNumber};
 	# If no runNumber exists then stage only run once
@@ -233,7 +234,7 @@ for my $stage (@{$stages}) {
 	# Write out html info to indexed hash now that we have the necessary stage/gate rowspan values
 	my $stageHTML .= qq(
 		<tr>
-			<td rowspan="$stageRowspan">$stageName</td>
+			<td rowspan="$stageRowspan"  style="background-color:$stageColor;"><font color="white">$stageName</td>
 	);
 
 	# If there are no gates, then indicate so by displaying '---'

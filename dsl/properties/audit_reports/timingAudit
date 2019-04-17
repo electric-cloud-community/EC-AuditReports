@@ -119,6 +119,8 @@ for my $stage (@{$stages}) {
         my $stageName = $stage->{name};
         $stagesHash{$stageIndex}{'name'} = $stageName;
         $stagesHash{$stageIndex}{'span'} = 0;
+		$stagesHash{$stageIndex}{'stageColor'} = $stage->{colorCode};
+
 
 	# loop through tasks for current stage
 	my $tasks=$ec->getPipelineStageRuntimeTasks({flowRuntimeId => $uuid, stageName => $stageName})->{responses}[0]->{task}; 
@@ -179,7 +181,7 @@ $HTML .= qq(
 for my $stageIndex (sort {$a<=>$b} keys %stagesHash) {
 	$HTML .= qq(
 		<tr>
-			<td rowspan="$stagesHash{$stageIndex}{'span'}">$stagesHash{$stageIndex}{'name'}</td>
+			<td rowspan="$stagesHash{$stageIndex}{'span'}" style="background-color:$stagesHash{$stageIndex}{'stageColor'};"><font color="white">$stagesHash{$stageIndex}{'name'}</td>
 	);
 
 	my %types = %{$stagesHash{$stageIndex}{'types'}};
