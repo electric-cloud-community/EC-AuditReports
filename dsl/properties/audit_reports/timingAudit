@@ -22,6 +22,8 @@ my $DEBUG = 0;
 use ElectricCommander;
 use DateTime::Format::Strptime;
 use strict;
+use Data::Dumper;
+use Try::Tiny;
 $| = 1;
 
 # calculate total duration based on start/completion timestamps
@@ -123,7 +125,7 @@ for my $stage (@{$stages}) {
 
 
 	# loop through tasks for current stage
-	my $tasks=$ec->getPipelineStageRuntimeTasks({flowRuntimeId => $uuid, stageName => $stageName})->{responses}[0]->{task}; 
+	my $tasks=$ec->getPipelineStageRuntimeTasks({flowRuntimeId => $uuid, stageName => $stageName})->{responses}[0]->{task};
 	for my $task (@{$tasks}) {
 		# bump stages span counter
 		$stagesHash{$stageIndex}{'span'}++;
@@ -131,6 +133,21 @@ for my $stage (@{$stages}) {
 		# store task name
 		my $taskIndex = $task->{index};
 		$stagesHash{$stageIndex}{'types'}{$taskHashIndex}{$taskIndex}{'name'} = $task->{taskName};
+		
+		# store the Launch By User name
+		my $launchedByUser;
+		try {
+			if($task->{taskType} eq "PLUGIN" or $task->{taskType} eq "PROCEDURE") {
+				$launchedByUser = $ec->getProperty("/myPipelineRuntime/stages[$stageName]/tasks[$task->{taskName}]/job/launchedByUser", {flowRuntimeId => $uuid})->{responses}[0]->{property}->{value};
+			} else {
+				$launchedByUser = $ec->getProperty("/myPipelineRuntime/stages[$stageName]/tasks[$task->{taskName}]/launchedByUser", {flowRuntimeId => $uuid})->{responses}[0]->{property}->{value};
+			}
+		} catch {
+			$launchedByUser = "";
+		};
+
+		
+		$stagesHash{$stageIndex}{'types'}{$taskHashIndex}{$taskIndex}{'launchedByUser'} = $launchedByUser ;
 
 		# store task duration
 		my $startTime = $task->{startTime};
@@ -155,6 +172,20 @@ for my $stage (@{$stages}) {
 			# store task name
 			$stagesHash{$stageIndex}{'types'}{$gateHashIndex}{$taskIndex}{'name'} = $task->{name};
 
+			# store the Launch By User name
+			my $launchedByUser;
+			try {
+				if($task->{taskType} eq "PLUGIN" or $task->{taskType} eq "PROCEDURE") {
+					$launchedByUser = $ec->getProperty("/myPipelineRuntime/stages[$stageName]/tasks[$task->{taskName}]/job/launchedByUser", {flowRuntimeId => $uuid})->{responses}[0]->{property}->{value};
+				} else {
+					$launchedByUser = $ec->getProperty("/myPipelineRuntime/stages[$stageName]/tasks[$task->{taskName}]/launchedByUser", {flowRuntimeId => $uuid})->{responses}[0]->{property}->{value};
+				}
+			} catch {
+				$launchedByUser = "";
+			};
+			$stagesHash{$stageIndex}{'types'}{$gateHashIndex}{$taskIndex}{'launchedByUser'} = $launchedByUser ;
+
+			
 			# store task duration
 			my $startTime = $task->{startTime};
 			my $endTime = $task->{endTime};
@@ -174,6 +205,7 @@ $HTML .= qq(
 			<td>Stage</td>
 			<td>Type</td>
 			<td>Task</td>
+			<td>Launched By</td>
 			<td>Duration</td>
 		</tr>
 );
@@ -206,6 +238,7 @@ for my $stageIndex (sort {$a<=>$b} keys %stagesHash) {
 			}
 			$HTML .= qq(
 					<td>$stagesHash{$stageIndex}{'types'}{$typesIndex}{$taskIndex}{'name'}</td>
+					<td>$stagesHash{$stageIndex}{'types'}{$typesIndex}{$taskIndex}{'launchedByUser'}</td>																																													
 					<td>$stagesHash{$stageIndex}{'types'}{$typesIndex}{$taskIndex}{'duration'}</td>
 				</tr>
 			);

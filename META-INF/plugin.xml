@@ -1,7 +1,7 @@
 <plugin>
   <key>EC-AuditReports</key>
   <label>EC-AuditReports</label>
-  <version>1.0.0</version>
+  <version>1.2.0</version>
   <author>Ken McKnight</author>
   <authorUrl>mailto:kmcknight@electric-cloud.com</authorUrl>
   <category>Audit</category>
