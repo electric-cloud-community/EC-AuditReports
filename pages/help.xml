@@ -38,7 +38,6 @@
       <ul>
          <li><a href="#approval">Approval Audit Report</a></li>
          <li><a href="#evidence">Evidence Links Audit Report</a></li>
-         <li><a href="#production">Production Audit Report</a></li>
          <li><a href="#duration">Task Duration Audit Report</a></li>
       </ul>
 
@@ -68,20 +67,6 @@
 
       <h3>Sample Report</h3>
       <img src="../../plugins/@PLUGIN_KEY@/images/help/evidenceLinksAuditReport.png" alt="Evidence Links Audit Report" />
-
-      <h2><a name="production"></a>Production Audit Report</h2>
-
-      <p>The production audit report provides a single tabular view of all pipeline stage environments,
-      including:</p>
-      <ul>
-         <li>Environment Name</li>
-         <li>Artifacts</li>
-         <li>Snapshot Versions</li>
-         <li>Resources</li>
-      </ul>
-
-      <h3>Sample Report</h3>
-      <img src="../../plugins/@PLUGIN_KEY@/images/help/productionAuditReport.png" alt="Production Audit Report" />
 
       <h2><a name="duration"></a>Task Duration Audit Report</h2>
 

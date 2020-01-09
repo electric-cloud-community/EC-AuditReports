@@ -2,7 +2,7 @@
 
 EC-AuditReports is a collection of audit reports that show up in the summary of an associated release pipeline stage.
 
-Please visit the [project wiki](https://github.com/electric-cloud/EC-AuditReports/wiki) for details.
+Please visit the [project wiki](https://github.com/electric-cloud-community/EC-AuditReports/wiki) for details.
 
 # Quick Installation
 
@@ -14,7 +14,7 @@ The following plugins are required:
 ## Instructions
 
 To install the plugin:
-* Download latest [release](https://github.com/electric-cloud/EC-AuditReports/releases)
+* Download latest [release](https://github.com/electric-cloud-community/EC-AuditReports/releases)
 * Login to ElectricFlow
 * Go to the Plugin Manager, which is located under Administration --> Plugins
 * Select _Install from File/URL_
