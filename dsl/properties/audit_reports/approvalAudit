@@ -1,26 +1,13 @@
 #!ec-perl
 # Unplug content
 # Production stage audit report
-# View: v9
-# ectool setProperty /server/unplug/v9 --valueFile prodaudit.pl
-# https://flow/commander/pages/unplug/un_run9
-my $DEBUG = 0;
-
-# DEBUG: ec-perl fullinventory.pl
-#my $HTML="";$DEBUG= 1;
-
-#my $DEBUG= 1 if not defined $HTML;
-#my $HTML="" if $DEBUG;
-# if ($ENV{'GATEWAY_INTERFACE'}) {
-	##Running from unplug
-# } else {
-	##Debugging outside unplug
-	# $DEBUG = 1;
-	# my $HTML = "";
-# }
+# ectool setProperty /plugins/EC-AuditReports/project/audit_reports/approvalAudit --valueFile approvalAudit
 
 use ElectricCommander;
+use DateTime::Format::Strptime;
 use strict;
+use Data::Dumper;
+use Try::Tiny;
 $| = 1;
 
 my $ec = new ElectricCommander({'format'=>'json'});
@@ -40,9 +27,6 @@ $HTML .= qq(
 		</tr>
 );
 
-#my $uuid = "f4e0c98a-bdb2-11e7-8e15-280820524153"; # all gates
-#my $uuid = "ab57569f-bdb4-11e7-b4c3-280820524153"; # one gate per stage
-#my $uuid = "43b5084e-bdb4-11e7-8a64-280820524153"; # multiple tasks on a gate
 my $uuid = $cgi->url_param('flowRuntimeId');
 my $flowRuntime=$ec->getPipelineRuntimeDetails({flowRuntimeId => $uuid})->{responses}[0]->{flowRuntime}[0]; 
 my $flowRuntimeName = $flowRuntime->{flowRuntimeName};
@@ -77,69 +61,107 @@ $HTML .= qq(
    </table>
 );
 
-# Process stages/gates
-$HTML .= qq(
-    <h2>Details</h2>
-    <table class="data" cellspacing="0">
-		<tr class="headerRow">
-			<td>Stage</td>
-			<td>Gate Type</td>
-			<td>User</td>
-			<td>Status</td>
-			<td>Date</td>
-			<td>Comment</td>
-		</tr>
-);
+# Create hash to hold stage/gates/tasks data
+# Once hash is complete, then create xhtml output (separation of data and presentation layers)
+my %stagesHash;
 
-# Create hash to hold stages info so it can be sorted numerically by index number
-# Also needed because rowspan for stage/gates can only be calculated as the json structure is parsed,
-# meaning I can't just generate the html table rows on the fly
-my %stagesInfo;
+# task indexes for proper sorting
+my $preHashIndex = 0;
+my $taskHashIndex = 1;
+my $postHashIndex = 2;
 
-# Loop through stages
+# Loop through stages and store stage and gate task data
 my $stages=$flowRuntime->{stages}->{stage};
 for my $stage (@{$stages}) {
-	my $stageRowspan = 0;
 	my $stageIndex = $stage->{index};
-	my $stageName = $stage->{name};
-	my $stageColor = $stage->{colorCode};
+        my $stageName = $stage->{name};
+        $stagesHash{$stageIndex}{'name'} = $stageName;
+        $stagesHash{$stageIndex}{'span'} = 0;
+		$stagesHash{$stageIndex}{'stageColor'} = $stage->{colorCode};
 
-	my $stageRunNumber = $stage->{stageRunNumber};
-	# If no runNumber exists then stage only run once
-	if ($stageRunNumber eq "") {
-		$stageRunNumber = "";
-	} else {
-		$stageRunNumber = "(Run $stageRunNumber)";
+
+	# loop through tasks for current stage
+	my $tasks=$ec->getPipelineStageRuntimeTasks({flowRuntimeId => $uuid, stageName => $stageName})->{responses}[0]->{task};
+	for my $task (@{$tasks}) {
+		
+		my $taskType = $task->{taskType};
+		
+		if ($taskType eq "MANUAL") {
+		
+			my $taskStatus = $task->{status};
+			my $evidence = $task->{comment};
+			my $approvalDate = $task->{endTime};
+			
+			my $user = $task->{approvedByUsers}->{approvedBy}[0];
+
+			my $fullUserName;
+			# Get full user name
+			if ($user =~ m/^project:/) {
+				# Unless it's a project principle, in which case just use 'approvers' 
+				$fullUserName = $task->{approvers};
+			} else {
+				if ($user) {$fullUserName = $ec->getUser({userName => $user})->{responses}[0]->{user}->{fullUserName}}
+			}
+			
+			# If no status exists then gate hasn't been reached yet
+			if ($taskStatus eq "") {
+				$taskStatus = "<i>Future</i>";
+			}
+			# bump stages span counter
+			$stagesHash{$stageIndex}{'span'}++;
+
+			# Add status color coding
+			my $statusColor;
+			if ($taskStatus eq "Approved" || $taskStatus eq "success") {
+				$statusColor = "green";
+			} elsif ($taskStatus eq "Pending") {
+				$statusColor = "orange";
+			} elsif ($taskStatus eq "Rejected" || $taskStatus eq "ABORT" || $taskStatus eq "error") {
+				$statusColor = "red";
+			} elsif ($taskStatus eq "skipped") {
+				$statusColor = "gray";
+			} else {
+				$statusColor = "black";
+			}		
+			
+			# store task name
+			my $taskIndex = $task->{index};
+			$stagesHash{$stageIndex}{'types'}{$taskHashIndex}{$taskIndex}{'name'} = $task->{taskName};
+			$stagesHash{$stageIndex}{'types'}{$taskHashIndex}{$taskIndex}{'taskType'} = $task->{taskType};
+			$stagesHash{$stageIndex}{'types'}{$taskHashIndex}{$taskIndex}{'fullUserName'} = $fullUserName;
+			$stagesHash{$stageIndex}{'types'}{$taskHashIndex}{$taskIndex}{'status'} = $taskStatus;
+			$stagesHash{$stageIndex}{'types'}{$taskHashIndex}{$taskIndex}{'approvalDate'} = $approvalDate;
+			$stagesHash{$stageIndex}{'types'}{$taskHashIndex}{$taskIndex}{'evidence'} = $evidence;
+			$stagesHash{$stageIndex}{'types'}{$taskHashIndex}{$taskIndex}{'statusColor'} = $statusColor;
+		}
 	}
-	
-	# Loop through gates
-	my $gateHTML="";
+
+	# loop through gate tasks for current stage
 	my $gates=$stage->{gates}->{gate};
 	for my $gate (@{$gates}) {
-		my $gateRowspan = 0;
 		my $gateType = $gate->{gateType};
+		my $gateHashIndex = $preHashIndex;
 		my $taskCount = $gate->{taskCount};
-		
+		if ($gateType eq "POST") {$gateHashIndex = $postHashIndex}
+
 		# Loop through tasks
-		my $taskHTML="";
+		my $taskIndex = 0;
 		my $tasks=$gate->{tasks}->{task};
-		
-		# Loop through tasks
-		# Handles special case of no tasks
-		my $task = shift @{$tasks};
-		do {
-			$gateRowspan++;
-			my $status;
+		for my $task (@{$tasks}) {
+			# bump stages span counter
+			$stagesHash{$stageIndex}{'span'}++;
+
+			my $taskStatus;
 			if ($taskCount eq 0) {
 				next;
 			} else {
-				$status = $task->{status};
+				$taskStatus = $task->{status};
 				# If no status exists then gate hasn't been reached yet
-				if ($status eq "") {
-					$status = "<i>Future</i>";
+				if ($taskStatus eq "") {
+					$taskStatus = "<i>Future</i>";
 				}
 			}
-
+			
 			# set defaults
 			my $fullUserName = "";
 			my $approvalDate = "";
@@ -153,10 +175,9 @@ for my $stage (@{$stages}) {
 			} else {
 				$taskRunNumber = "(Run $taskRunNumber)";
 			}
-
 			my $taskType = $task->{taskType};
 			if ($taskType eq "APPROVAL") {
-				if ($status eq "Approved" || $status eq "Rejected") {
+				if ($taskStatus eq "Approved" || $taskStatus eq "Rejected") {
 					$user = $task->{approvedBy};
 					$approvalDate = $task->{approvalDate};
 					$evidence = $task->{evidence};
@@ -183,80 +204,87 @@ for my $stage (@{$stages}) {
 			
 			# Add status color coding
 			my $statusColor;
-			if ($status eq "Approved" || $status eq "success") {
+			if ($taskStatus eq "Approved" || $taskStatus eq "success") {
 				$statusColor = "green";
-			} elsif ($status eq "Pending") {
+			} elsif ($taskStatus eq "Pending") {
 				$statusColor = "orange";
-			} elsif ($status eq "Rejected" || $status eq "ABORT" || $status eq "error") {
+			} elsif ($taskStatus eq "Rejected" || $taskStatus eq "ABORT" || $taskStatus eq "error") {
 				$statusColor = "red";
+			} elsif ($taskStatus eq "skipped") {
+				$statusColor = "gray";
 			} else {
 				$statusColor = "black";
-			}
-						
-			# Only start new row if it's not the first task, which is combined with the gate
-			if ($gateRowspan gt 1) {
-				$taskHTML .= qq(
-					<tr>
-				);
-			}
-			# Write out the rest of the row minus gate type (done later due to rowspan count)
-			$taskHTML .= qq(
-					<td>$fullUserName $taskRunNumber</td>
-					<td><font color="$statusColor">$status</font></td>
-					<td>$approvalDate</td>
-					<td>$evidence</td>
-				</tr>
-			);
-		} while ($task = shift @{$tasks});
+			}	
+			
+			# store task name
+			$stagesHash{$stageIndex}{'types'}{$gateHashIndex}{$taskIndex}{'name'} = $task->{name};
+			$stagesHash{$stageIndex}{'types'}{$gateHashIndex}{$taskIndex}{'fullUserName'} = $fullUserName;
+			$stagesHash{$stageIndex}{'types'}{$gateHashIndex}{$taskIndex}{'taskRunNumber'} = $taskRunNumber;
+			$stagesHash{$stageIndex}{'types'}{$gateHashIndex}{$taskIndex}{'statusColor'} = $statusColor;
+			$stagesHash{$stageIndex}{'types'}{$gateHashIndex}{$taskIndex}{'status'} = $taskStatus;
+			$stagesHash{$stageIndex}{'types'}{$gateHashIndex}{$taskIndex}{'approvalDate'} = $approvalDate;
+			$stagesHash{$stageIndex}{'types'}{$gateHashIndex}{$taskIndex}{'evidence'} = $evidence;
 
-		# Only combine with stage row if it's the first gate
-		if ($gateRowspan gt 1) {
-			$taskHTML .= qq(
-				<tr>
-			);
+			
+			# bump index counter
+			$taskIndex++;
 		}
-		# Add gate row that spans 1 or more tasks
-		$gateHTML .= qq(
-			<td rowspan="$gateRowspan">$gateType $stageRunNumber</td>
-		);
-		$gateHTML .= $taskHTML;
-		
-		# Add tasks in gate to total rows spanned by stage
-		$stageRowspan += $gateRowspan;
 	}
-
-	# Handle special case where there were no gate entries, so stageRowspan was still set to 0, which
-	# is actually a special case for several browsers and causes incorrect behavior
-        if ($stageRowspan eq 0) {
-            $stageRowspan= 1;
-        }
-	
-	# Write out html info to indexed hash now that we have the necessary stage/gate rowspan values
-	my $stageHTML .= qq(
-		<tr>
-			<td rowspan="$stageRowspan"  style="background-color:$stageColor;"><font color="white">$stageName</td>
-	);
-
-	# If there are no gates, then indicate so by displaying '---'
-	if ($gateHTML eq "") {
-		$gateHTML .= qq(
-				<td>---</td>
-				<td>---</td>
-				<td>---</td>
-				<td>---</td>
-				<td>---</td>
-			</tr>
-		);
-	}
-	$stageHTML .= $gateHTML;
-	$stagesInfo{$stageIndex} = $stageHTML;
 }
 
-# Now sort hash in numeric order and save in unplug $HTML variable for display
-for my $stageInfoIndex ( sort {$a<=>$b} keys %stagesInfo) {
-	$HTML .= $stagesInfo{$stageInfoIndex};
+# create xhtml for stages hash data
+$HTML .= qq(
+    <h2>Details</h2>
+    <table class="data" cellspacing="0">
+		<tr class="headerRow">
+			<td>Stage</td>
+			<td>Type</td>
+			<td>Label</td>
+			<td>User</td>
+			<td>Status</td>
+			<td>Date</td>
+			<td>Comment</td>
+		</tr>
+);
+#$HTML .= Dumper %stagesHash;
+for my $stageIndex (sort {$a<=>$b} keys %stagesHash) {
+	$HTML .= qq(
+		<tr>
+			<td rowspan="$stagesHash{$stageIndex}{'span'}" style="background-color:$stagesHash{$stageIndex}{'stageColor'};"><font color="white">$stagesHash{$stageIndex}{'name'}</td>
+	);
+
+	if ($stagesHash{$stageIndex}{'types'}) {
+		my %types = %{$stagesHash{$stageIndex}{'types'}};
+		for my $typesIndex (sort {$a<=>$b} keys %types) {
+			my %tasks = %{$types{$typesIndex}};
+			my $taskName = "PRE";
+			if ($typesIndex == $taskHashIndex) {$taskName = "TASK"}
+			elsif ($typesIndex == $postHashIndex) {$taskName = "POST"}
+
+			for my $taskIndex (sort {$a<=>$b} keys %tasks) {
+				# Only combine with stage row if it is the first gate
+				if ($taskIndex gt 0) {
+					$HTML .= qq(
+						<tr>
+					);
+				}
+					my $statusColor = $stagesHash{$stageIndex}{'types'}{$typesIndex}{$taskIndex}{'statusColor'};
+					$HTML .= qq(
+							<td>$taskName</td>
+							<td>$stagesHash{$stageIndex}{'types'}{$typesIndex}{$taskIndex}{'name'}</td>
+							<td>$stagesHash{$stageIndex}{'types'}{$typesIndex}{$taskIndex}{'fullUserName'}</td>
+							<td><font color="$statusColor">$stagesHash{$stageIndex}{'types'}{$typesIndex}{$taskIndex}{'status'}</font></td>
+							<td>$stagesHash{$stageIndex}{'types'}{$typesIndex}{$taskIndex}{'approvalDate'}</td>
+							<td>$stagesHash{$stageIndex}{'types'}{$typesIndex}{$taskIndex}{'evidence'}</td>
+						</tr>
+					);
+			}
+		}
+	}
+
 }
 
 $HTML .= qq(
    </table>
 );
+
