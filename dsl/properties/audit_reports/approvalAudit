@@ -83,15 +83,14 @@ for my $stage (@{$stages}) {
 	# loop through tasks for current stage
 	my $tasks=$ec->getPipelineStageRuntimeTasks({flowRuntimeId => $uuid, stageName => $stageName})->{responses}[0]->{task};
 	for my $task (@{$tasks}) {
-		
 		my $taskType = $task->{taskType};
-		
 		if ($taskType eq "MANUAL") {
-		
+			# bump stages span counter
+			$stagesHash{$stageIndex}{'span'}++;			
 			my $taskStatus = $task->{status};
 			my $evidence = $task->{comment};
 			my $approvalDate = $task->{endTime};
-			
+			my $taskCount = $task->{taskCount};
 			my $user = $task->{approvedByUsers}->{approvedBy}[0];
 
 			my $fullUserName;
@@ -102,13 +101,13 @@ for my $stage (@{$stages}) {
 			} else {
 				if ($user) {$fullUserName = $ec->getUser({userName => $user})->{responses}[0]->{user}->{fullUserName}}
 			}
-			
+
+			my $taskStatus;
+			$taskStatus = $task->{status};
 			# If no status exists then gate hasn't been reached yet
 			if ($taskStatus eq "") {
 				$taskStatus = "<i>Future</i>";
 			}
-			# bump stages span counter
-			$stagesHash{$stageIndex}{'span'}++;
 
 			# Add status color coding
 			my $statusColor;
@@ -151,15 +150,10 @@ for my $stage (@{$stages}) {
 			# bump stages span counter
 			$stagesHash{$stageIndex}{'span'}++;
 
-			my $taskStatus;
-			if ($taskCount eq 0) {
-				next;
-			} else {
-				$taskStatus = $task->{status};
-				# If no status exists then gate hasn't been reached yet
-				if ($taskStatus eq "") {
-					$taskStatus = "<i>Future</i>";
-				}
+			my $taskStatus = $task->{status};
+			# If no status exists then gate hasn't been reached yet
+			if ($taskStatus eq "") {
+				$taskStatus = "<i>Future</i>";
 			}
 			
 			# set defaults
@@ -263,7 +257,7 @@ for my $stageIndex (sort {$a<=>$b} keys %stagesHash) {
 
 			for my $taskIndex (sort {$a<=>$b} keys %tasks) {
 				# Only combine with stage row if it is the first gate
-				if ($taskIndex gt 0) {
+				if ($taskIndex gt 0 and ($taskName eq "PRE" or $taskName eq "POST")) {
 					$HTML .= qq(
 						<tr>
 					);

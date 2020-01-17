@@ -1,8 +1,16 @@
+<!--
+
+Revision History
+1.4.1 - Handle zero manual tasks, update author
+1.4.0 - Add manual tasks to approval report
+
+-->
+
 <plugin>
   <key>EC-AuditReports</key>
   <label>EC-AuditReports</label>
-  <version>1.4.0</version>
-  <author>Ken McKnight</author>
+  <version>1.4.1</version>
+  <author>Greg Maxey</author>
   <category>Audit</category>
   <commander-version min="6.0" />
   <description>A collection of audit reports that show up in the summary of an associated release pipeline stage.</description>
