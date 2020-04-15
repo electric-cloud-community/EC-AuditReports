@@ -42,9 +42,15 @@ my $promoteDsl = q{
 my $dsl;
 if ($promoteAction eq 'promote') {
   $dsl = $promoteDsl;
+  $commander->setProperty("/server/unplug/va", {value=>'$' . '[/plugins/EC-AuditReports/project/audit_reports/approvalAudit]'});
+	$commander->setProperty("/server/unplug/vb", {value=>'$' . '[/plugins/EC-AuditReports/project/audit_reports/timingAudit]'});
+	$commander->setProperty("/server/unplug/vc", {value=>'$' . '[/plugins/EC-AuditReports/project/audit_reports/evidenceAudit]'});
 }
 else {
   $dsl = $demoteDsl;
+  	foreach ("va", "vb", "vc") {
+		$commander->setProperty("/server/unplug/$_", {value=>"\$[/plugins/unplug/project/v_example$_]"});
+	}
 }
 
 my $dslReponse = $commander->evalDsl(

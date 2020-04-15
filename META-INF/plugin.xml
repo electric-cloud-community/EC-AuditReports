@@ -1,7 +1,7 @@
 <!--
 
 Revision History
-1.4.3 - Move to /server/unplug/va, vb, vc. Move set properties to ec_setup_custom.pl
+1.4.3 - Fix setting /user/unplug properties. Move to /server/unplug/va, vb, vc
 1.4.2 - Add "Audit Report" procedure, handle /server/unplug access, update images
 1.4.1 - Handle zero manual tasks, update author
 1.4.0 - Add manual tasks to approval report
@@ -11,7 +11,7 @@ Revision History
 <plugin>
   <key>EC-AuditReports</key>
   <label>EC-AuditReports</label>
-  <version>1.4.2</version>
+  <version>1.4.3</version>
   <author>Greg Maxey</author>
   <category>Audit</category>
   <commander-version min="6.0" />

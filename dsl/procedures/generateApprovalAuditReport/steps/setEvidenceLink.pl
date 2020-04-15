@@ -11,4 +11,4 @@ $[/myProject/scripts/perlHeaderJSON]
 
 # set pipeline stage summary link to access unplug generated report
 $ec->setProperty("/myPipelineStageRuntime/ec_summary/Approval Audit:", 
-   '<html><a target="_blank" href="/commander/pages/unplug/un_runva?flowRuntimeId=$[/myPipelineRuntime/flowRuntimeId]">Summary Report</a></html>');
+   '<html><a target="_blank" href="/commander/pages/unplug/un_runa?flowRuntimeId=$[/myPipelineRuntime/flowRuntimeId]">Summary Report</a></html>');
