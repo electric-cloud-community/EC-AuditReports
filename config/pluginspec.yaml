@@ -1,0 +1,19 @@
+pluginInfo:
+  # This is default sample specification
+  # Feel free to change it
+  # Call flowpdk showdoc pluginspec to see the list of available fields and their description
+  pluginName: 'EC-AuditReports'
+  version: '1.5.0'
+  description: 'A collection of audit reports that can be accessed through a summary link'
+  author: 'Greg Maxey'
+  supportUrl: 'https://www.cloudbees.com/'
+  category: 'Reports'
+  shell: 'ec-perl'
+
+procedures:
+-
+  name: 'AuditReports'
+  name: 'generateApprovalAuditReport'
+  name: 'generateEvidenceLinksAuditReport'
+  name: 'generateTaskDurationAuditReport'
+  name: 'RetrieveDependencies'

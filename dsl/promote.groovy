@@ -1,3 +1,5 @@
+
+// DO NOT EDIT THIS BLOCK === promote_autogen starts ===
 import groovy.transform.BaseScript
 import com.electriccloud.commander.dsl.util.BasePlugin
 
@@ -13,34 +15,27 @@ def pluginKey = getProject("/plugins/$pluginName/project").pluginKey
 def pluginDir = getProperty("/projects/$pluginName/pluginDir").value
 
 //List of procedure steps to which the plugin configuration credentials need to be attached
-// ** steps with attached credentials
 def stepsWithAttachedCredentials = [
-		/*[
-			procedureName: 'Procedure Name',
-			stepName: 'step that needs the credentials to be attached'
-		 ],*/
-	]
-// ** end steps with attached credentials
+
+]
 
 project pluginName, {
+    property 'ec_keepFilesExtensions', value: 'true'
+    property 'ec_formXmlCompliant', value: 'true'
+    loadPluginProperties(pluginDir, pluginName)
+    loadProcedures(pluginDir, pluginKey, pluginName, stepsWithAttachedCredentials)
 
+    }
 
-	loadPluginProperties(pluginDir, pluginName)
-	loadProcedures(pluginDir, pluginKey, pluginName, stepsWithAttachedCredentials)
-	//plugin configuration metadata
-	property 'ec_config', {
-		form = '$[' + "/projects/${pluginName}/procedures/CreateConfiguration/ec_parameterForm]"
-		property 'fields', {
-			property 'desc', {
-				property 'label', value: 'Description'
-				property 'order', value: '1'
-			}
-		}
-	}
+def retainedProperties = []
 
+upgrade(upgradeAction, pluginName, otherPluginName, stepsWithAttachedCredentials, 'ec_plugin_cfgs', retainedProperties)
+// DO NOT EDIT THIS BLOCK === promote_autogen ends, checksum: 7b36bfa258bbcd3b940ea8bb0dd7b1d4 ===
+// Do not edit the code above this line
+
+project pluginName, {
+    // You may add your own DSL instructions below this line, like
+    // property 'myprop', {
+    //     value: 'value'
+    // }
 }
-
-// Copy existing plugin configurations from the previous
-// version to this version. At the same time, also attach
-// the credentials to the required plugin procedure steps.
-upgrade(upgradeAction, pluginName, otherPluginName, stepsWithAttachedCredentials)

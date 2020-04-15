@@ -9,7 +9,7 @@ Please visit the [project wiki](https://github.com/electric-cloud-community/EC-A
 ## Prerequisites
 
 The following plugins are required:
-* [Unplug](https://github.com/electric-cloud/Unplug)
+* [Unplug](https://github.com/electric-cloud-community/Unplug)
 
 ## Instructions
 
