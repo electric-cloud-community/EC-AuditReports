@@ -40,13 +40,6 @@ project pluginName, {
 
 }
 
-modifyProperty "/server/unplug/v1", value: '$[/plugins/EC-AuditReports/project/audit_reports/approvalAudit]'
-modifyProperty "/server/unplug/v2", value: '$[/plugins/EC-AuditReports/project/audit_reports/timingAudit]'
-modifyProperty "/server/unplug/v3", value: '$[/plugins/EC-AuditReports/project/audit_reports/evidenceAudit]'
-
-
-
-
 // Copy existing plugin configurations from the previous
 // version to this version. At the same time, also attach
 // the credentials to the required plugin procedure steps.

@@ -1,7 +1,8 @@
 <!--
 
 Revision History
-1.4.2 - Add "Audit Report procedrue and access control to /server/unplug
+1.4.3 - Move to /server/unplug/va, vb, vc. Move set properties to ec_setup_custom.pl
+1.4.2 - Add "Audit Report" procedure, handle /server/unplug access, update images
 1.4.1 - Handle zero manual tasks, update author
 1.4.0 - Add manual tasks to approval report
 
